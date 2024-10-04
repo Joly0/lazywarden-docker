@@ -1,0 +1,83 @@
+name: Build and Push Docker Image for New Release
+
+on:
+  # Trigger the workflow when the 'Check for New Releases' workflow completes successfully
+  workflow_run:
+    workflows: ["Check for New Releases"]
+    types:
+      - completed
+
+jobs:
+  build:
+    runs-on: ubuntu-latest  # Use the latest Ubuntu runner for this job
+
+    permissions:
+      contents: read  # Read repository content
+      packages: write  # Write permissions to GitHub packages
+
+    steps:
+    - name: Checkout the workflow repository
+      uses: actions/checkout@v4  # Checkout the repository containing the workflow file
+
+    - name: Clone target repository
+      run: |
+        git clone https://github.com/${{ vars.REPO_PROFILE }}/${{ vars.REPO_NAME }}.git  # Clone the target repository
+        cd ${{ vars.REPO_NAME }}  # Navigate into the cloned repository
+        latest_release_tag=$(cat ../previous_release_tag)  # Retrieve the latest release tag from a file in the previous directory
+        echo "LATEST_RELEASE_TAG=${latest_release_tag}" >> $GITHUB_ENV  # Store the release tag as an environment variable
+        
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3  # Set up Docker Buildx for building multi-platform images
+
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ vars.DOCKER_HUB_USERNAME }}  # Use Docker Hub username from secrets
+        password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}  # Use Docker Hub access token from secrets
+
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io  # Specify GitHub Container Registry as the target registry
+        username: ${{ github.actor }}  # Use the GitHub actor (the account running the workflow)
+        password: ${{ secrets.GITHUB_TOKEN }}  # Use GitHub token for authentication
+
+    - name: Build Docker image
+      run: |
+        cd ${{ vars.REPO_NAME }}  # Navigate to the cloned repository
+        LOWERCASE_REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')  # Convert repository owner to lowercase
+        # Build the Docker image with the release tag and stable tag
+        docker build -t $LOWERCASE_REPO_OWNER/${{ vars.REPO_NAME }}:${{ env.LATEST_RELEASE_TAG }} -t $LOWERCASE_REPO_OWNER/${{ vars.REPO_NAME }}:stable . -f Dockerfile
+
+    - name: Tag Docker image for GitHub Container Registry
+      run: |
+        LOWERCASE_REPO_OWNER=$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')  # Convert repository owner to lowercase
+        # Tag the Docker image with the release and stable tags for GitHub Container Registry
+        docker tag $LOWERCASE_REPO_OWNER/${{ vars.REPO_NAME }}:${{ env.LATEST_RELEASE_TAG }} ghcr.io/$LOWERCASE_REPO_OWNER/${{ vars.REPO_NAME }}:${{ env.LATEST_RELEASE_TAG }}
+        docker tag $LOWERCASE_REPO_OWNER/${{ vars.REPO_NAME }}:stable ghcr.io/$LOWERCASE_REPO_OWNER/${{ vars.REPO_NAME }}:stable
+
+    - name: Push Docker image to GitHub Container Registry
+      run: |
+        LOWERCASE_REPO_OWNER=$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')  # Convert repository owner to lowercase
+        # Push the release and stable tagged Docker images to GitHub Container Registry
+        docker push ghcr.io/$LOWERCASE_REPO_OWNER/${{ vars.REPO_NAME }}:${{ env.LATEST_RELEASE_TAG }}
+        docker push ghcr.io/$LOWERCASE_REPO_OWNER/${{ vars.REPO_NAME }}:stable
+
+    - name: Tag Docker image for Docker Hub
+      run: |
+        LOWERCASE_REPO_OWNER=$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')  # Convert repository owner to lowercase
+        DOCKER_HUB_REPO=${{ vars.DOCKER_HUB_USERNAME }}/${{ vars.REPO_NAME }}  # Set the Docker Hub repository path
+        # Tag the Docker image with the release and stable tags for Docker Hub
+        docker tag $LOWERCASE_REPO_OWNER/${{ vars.REPO_NAME }}:${{ env.LATEST_RELEASE_TAG }} $DOCKER_HUB_REPO:${{ env.LATEST_RELEASE_TAG }}
+        docker tag $LOWERCASE_REPO_OWNER/${{ vars.REPO_NAME }}:stable $DOCKER_HUB_REPO:stable
+
+    - name: Push Docker image to Docker Hub
+      run: |
+        DOCKER_HUB_REPO=${{ secrets.DOCKER_HUB_USERNAME }}/${{ vars.REPO_NAME }}  # Set the Docker Hub repository path
+        # Push the release and stable tagged Docker images to Docker Hub
+        docker push $DOCKER_HUB_REPO:${{ env.LATEST_RELEASE_TAG }}
+        docker push $DOCKER_HUB_REPO:stable
+
+    - name: Clean up
+      run: |
+        rm -rf ${{ vars.REPO_NAME }}  # Remove the cloned repository to clean up the workspace
