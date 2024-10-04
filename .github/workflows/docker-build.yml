@@ -1,0 +1,77 @@
+name: Build and Publish Docker Image_simple
+
+on:
+  #schedule:
+    #- cron: '0 0 * * *' # Runs daily at midnight
+  workflow_dispatch: # Allows manual trigger
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout the workflow repository
+      uses: actions/checkout@v4
+
+    - name: Clone target repository
+      run: |
+        git clone https://github.com/${{ vars.REPO_PROFILE }}/${{ vars.REPO_NAME }}.git
+        cd ${{ vars.REPO_NAME }}
+        if [ ! -f ../last_commit ]; then
+          echo "Creating last_commit file..."
+          git rev-parse HEAD > ../last_commit
+          exit 0
+        elif [ "$(git rev-parse HEAD)" == "$(cat ../last_commit)" ]; then
+          echo "No new commits, exiting..."
+          exit 0
+        else
+          echo "Current hash: $(git rev-parse HEAD)"
+          echo "Previous hash: $(cat ../last_commit)"
+          latest_commit=$(git rev-parse HEAD)
+          echo "LATEST_COMMIT=${latest_commit}" >> $GITHUB_ENV
+        fi
+
+    - name: Save the commit hash to a file
+      if: env.LATEST_COMMIT != ''
+      run: |
+        echo "$LATEST_COMMIT" > last_commit
+
+    - name: Commit and push changes
+      if: env.LATEST_COMMIT != ''
+      run: |
+        git config --global user.name 'github-actions[bot]'
+        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+        git add last_commit
+        git commit -m "Save latest commit hash"
+        git push
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Set up Docker Buildx
+      if: env.LATEST_COMMIT != ''
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to GitHub Container Registry
+      if: env.LATEST_COMMIT != ''
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build and push Docker image
+      if: env.LATEST_COMMIT != ''
+      run: |
+        cd ${{ vars.REPO_NAME }}
+        REPO_DOCKER=$(echo ${{ vars.REPO_NAME }}-docker)
+        LOWERCASE_REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+
+        # Build Docker image
+        docker build -t ghcr.io/$LOWERCASE_REPO_OWNER/$REPO_DOCKER:latest . -f Dockerfile
+
+        docker push ghcr.io/$LOWERCASE_REPO_OWNER/$REPO_DOCKER:latest
+
+    - name: Clean up
+      if: env.LATEST_COMMIT != ''
+      run: |
+        rm -rf ${{ vars.REPO_NAME }}
