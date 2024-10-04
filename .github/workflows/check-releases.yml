@@ -1,0 +1,62 @@
+name: Check for New Releases
+
+# Define when the workflow should run
+on:
+  # This workflow runs on a daily schedule (midnight) and can also be triggered manually
+  #schedule:
+  #  - cron: '0 0 * * *'  # Cron expression for daily execution at midnight (currently commented out)
+  workflow_dispatch:  # Allows for manual triggering of the workflow
+
+# Define the jobs to be executed in this workflow
+jobs:
+  check-releases:
+    runs-on: ubuntu-latest  # The job runs on the latest Ubuntu runner
+    steps:
+    # Step 1: Check out the repository containing the workflow file
+    - name: Checkout the workflow repository
+      uses: actions/checkout@v4
+
+    # Step 2: Fetch the latest release information from GitHub API
+    - name: Fetch latest release info
+      id: fetch_release  # Give the step an ID to reference its output later
+      run: |
+        # Construct the URL to fetch the latest release info
+        latest_release_url="https://api.github.com/repos/${{ vars.REPO_PROFILE }}/${{ vars.REPO_NAME }}/releases/latest"
+        # Fetch the latest release data using curl and store the response
+        response=$(curl --silent $latest_release_url)
+        # Extract the tag name of the latest release using jq (a JSON processor)
+        latest_release_tag=$(echo $response | jq -r '.tag_name')
+        # Store the latest release tag in the environment variables for later use
+        echo "latest_release_tag=$latest_release_tag" >> $GITHUB_ENV
+
+    # Step 3: Get the previous release information
+    - name: Get previous release info
+      run: |
+        # Check if the file containing the previous release tag exists
+        if [ ! -f previous_release_tag ]; then
+          echo "" > previous_release_tag  # If not, create an empty file
+        fi
+        # Read the previous release tag from the file
+        previous_release_tag=$(cat previous_release_tag)
+        # Store the previous release tag in the environment variables for later use
+        echo "previous_release_tag=$previous_release_tag" >> $GITHUB_ENV
+
+    # Step 4: Compare releases and update if there's a new release
+    - name: Compare releases and store new release info
+      # Only run this step if the latest release tag is different from the previous release tag
+      if: env.latest_release_tag != env.previous_release_tag
+      run: |
+        # Update the previous release tag file with the latest release tag
+        echo "$latest_release_tag" > previous_release_tag
+        # Configure Git for committing changes
+        git config --global user.name 'github-actions[bot]'
+        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+        # Stage the updated previous release tag file
+        git add previous_release_tag
+        # Commit the changes
+        git commit -m "Update previous release tag to $latest_release_tag"
+        # Push the changes to the remote repository
+        git push
+      env:
+        # Use the GitHub token for authentication to push changes
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

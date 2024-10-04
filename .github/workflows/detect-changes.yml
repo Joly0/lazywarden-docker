@@ -1,0 +1,69 @@
+name: Detect Changes and Update Commit Hash
+
+# Define when the workflow should run
+on:
+  # This workflow runs on a daily schedule (midnight) and can also be triggered manually
+  #schedule:
+  #  - cron: '0 0 * * *'  # Cron expression for daily execution at midnight (currently commented out)
+  workflow_dispatch:  # Allows for manual triggering of the workflow
+
+# Define the jobs to be executed in this workflow
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest  # The job runs on the latest Ubuntu runner
+    permissions:
+      contents: write  # Grant write permissions to modify and push changes to the repository
+    steps:
+    # Step 1: Check out the repository containing the workflow file
+    - name: Checkout the workflow repository
+      uses: actions/checkout@v4
+
+    # Step 2: Clone the target repository and check for new commits
+    - name: Clone target repository
+      run: |
+        # Clone the target repository
+        git clone https://github.com/${{ vars.REPO_PROFILE }}/${{ vars.REPO_NAME }}.git
+        cd ${{ vars.REPO_NAME }}
+        # Check if the 'last_commit' file exists, create it if it doesn't
+        if [ ! -f ../last_commit ]; then
+          echo "Creating last_commit file..."
+          git rev-parse HEAD > ../last_commit
+        fi
+        # If not triggered by a specific GitHub event, check for new commits
+        if [ "$GITHUB_EVENT_NAME" == "" ]; then
+          if [ "$(git rev-parse HEAD)" == "$(cat ../last_commit)" ]; then
+            echo "No new commits, exiting..."
+            exit 0
+          fi
+        fi
+        # Output current and previous commit hashes
+        echo "Current hash: $(git rev-parse HEAD)"
+        echo "Previous hash: $(cat ../last_commit)"
+        # Store the latest commit hash as an environment variable
+        latest_commit=$(git rev-parse HEAD)
+        echo "LATEST_COMMIT=${latest_commit}" >> $GITHUB_ENV
+
+    # Step 3: Save the new commit hash to a file
+    - name: Save the commit hash to a file
+      if: env.LATEST_COMMIT != ''  # Only run if a new commit hash exists
+      run: |
+        echo "$LATEST_COMMIT" > last_commit
+        echo "Updated last_commit file with: $LATEST_COMMIT"
+
+    # Step 4: Commit and push changes if there's a new commit
+    - name: Commit and push changes
+      if: env.LATEST_COMMIT != ''  # Only run if a new commit hash exists
+      run: |
+        # Configure Git for committing changes
+        git config --global user.name 'github-actions[bot]'
+        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+        if [[ -f last_commit && -n $(git status -s last_commit) ]]; then
+          git add last_commit
+          git commit -m "Update last_commit with latest hash: $LATEST_COMMIT"
+          git push
+        else
+          echo "No changes to commit in last_commit file"
+        fi
+      env:
+        # Use the GitHub token for authentication to push changes
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
