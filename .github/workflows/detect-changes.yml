@@ -3,8 +3,8 @@ name: Detect Changes and Update Commit Hash
 # Define when the workflow should run
 on:
   # This workflow runs on a daily schedule (midnight) and can also be triggered manually
-  #schedule:
-  #  - cron: '0 0 * * *'  # Cron expression for daily execution at midnight (currently commented out)
+  schedule:
+    - cron: '0 0 * * *'  # Cron expression for daily execution at midnight (currently commented out)
   workflow_dispatch:  # Allows for manual triggering of the workflow
 
 # Define the jobs to be executed in this workflow
