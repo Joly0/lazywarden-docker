@@ -63,7 +63,7 @@ jobs:
         DOCKER_HUB_USERNAME=$(echo "${DOCKER_HUB_USERNAME}" | tr -d '\r\n\t ')
         
         # Construct image tags
-        GITHUB_CR_TAG="ghcr.io/${repository_owner}/${REPO_DOCKER}:latest"
+        GITHUB_CR_TAG="ghcr.io/${LOWERCASE_REPO_OWNER}/${REPO_DOCKER}:latest"
         DOCKER_HUB_TAG="${DOCKER_HUB_USERNAME}/${REPO_DOCKER}:latest"
         
         # Build the Docker image
