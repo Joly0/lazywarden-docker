@@ -48,6 +48,7 @@ jobs:
       if: env.LATEST_COMMIT != ''  # Only run if a new commit hash exists
       run: |
         echo "$LATEST_COMMIT" > last_commit
+        echo "Updated last_commit file with: $LATEST_COMMIT"
 
     # Step 4: Commit and push changes if there's a new commit
     - name: Commit and push changes
@@ -56,14 +57,9 @@ jobs:
         # Configure Git for committing changes
         git config --global user.name 'github-actions[bot]'
         git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-        cd ${{ vars.REPO_NAME }}
-        # Check if the latest commit hash is different from the saved hash
-        if [ "$(git rev-parse HEAD)" != "$(cat ../last_commit)" ]; then
-          cd ..
-          git add -u last_commit  # Stage the 'last_commit' file for commit
-          git commit -m "Save latest commit hash"  # Commit the updated 'last_commit' file
-          git push  # Push the changes to the remote repository
-        fi
+        git add last_commit
+        git commit -m "Update last_commit with latest hash: $LATEST_COMMIT"
+        git push
       env:
         # Use the GitHub token for authentication to push changes
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
