@@ -52,25 +52,19 @@ jobs:
 
     - name: Build and push Docker image
       run: |
-        set -x  # Enable debug mode to print commands as they are executed
         cd "${{ vars.REPO_NAME }}"  # Navigate to the cloned repository
+        REPO_NAME=${{ vars.REPO_NAME }}
+        repository_owner=${{ github.repository_owner }}
+        DOCKER_HUB_USERNAME=${{ vars.DOCKER_HUB_USERNAME }}
         
         # Clean up variable values
-        REPO_DOCKER=$(echo "${{ vars.REPO_NAME }}-docker" | tr -d '\r\n\t ' | tr '[:upper:]' '[:lower:]')
-        LOWERCASE_REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr -d '\r\n\t ' | tr '[:upper:]' '[:lower:]')
-        DOCKER_HUB_USERNAME=$(echo "${{ vars.DOCKER_HUB_USERNAME }}" | tr -d '\r\n\t ')
-        
-        # Debug output
-        echo "REPO_DOCKER: ${REPO_DOCKER}"
-        echo "LOWERCASE_REPO_OWNER: ${LOWERCASE_REPO_OWNER}"
-        echo "DOCKER_HUB_USERNAME: ${DOCKER_HUB_USERNAME}"
+        REPO_DOCKER=$(echo "${REPO_NAME}-docker" | tr -d '\r\n\t ' | tr '[:upper:]' '[:lower:]')
+        LOWERCASE_REPO_OWNER=$(echo "${repository_owner}" | tr -d '\r\n\t ' | tr '[:upper:]' '[:lower:]')
+        DOCKER_HUB_USERNAME=$(echo "${DOCKER_HUB_USERNAME}" | tr -d '\r\n\t ')
         
         # Construct image tags
-        GITHUB_CR_TAG="ghcr.io/${LOWERCASE_REPO_OWNER}/${REPO_DOCKER}:latest"
+        GITHUB_CR_TAG="ghcr.io/${repository_owner}/${REPO_DOCKER}:latest"
         DOCKER_HUB_TAG="${DOCKER_HUB_USERNAME}/${REPO_DOCKER}:latest"
-        
-        echo "GitHub CR tag: ${GITHUB_CR_TAG}"
-        echo "Docker Hub tag: ${DOCKER_HUB_TAG}"
         
         # Build the Docker image
         docker build -t "${GITHUB_CR_TAG}" . -f Dockerfile
