@@ -54,20 +54,20 @@ jobs:
     - name: Build and push Docker image
       run: |
         cd ${{ vars.REPO_NAME }}  # Navigate to the cloned repository
-        REPO_DOCKER=$(echo ${{ vars.REPO_NAME }}-docker)
+        REPO_DOCKER=$(echo "${{ vars.REPO_NAME }}-docker" | tr -d '\r')
         # Convert repository owner to lowercase (GitHub package names must be lowercase)
-        LOWERCASE_REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+        LOWERCASE_REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]' | tr -d '\r')
         
         # Build the Docker image using the Dockerfile in the repository
-        docker build -t ghcr.io/$LOWERCASE_REPO_OWNER/$REPO_DOCKER:latest . -f Dockerfile
+        docker build -t "ghcr.io/${LOWERCASE_REPO_OWNER}/${REPO_DOCKER}:latest" . -f Dockerfile
         
         # Tag the image for Docker Hub
-        docker tag ghcr.io/$LOWERCASE_REPO_OWNER/$REPO_DOCKER:latest ${{ vars.DOCKER_HUB_USERNAME }}/$REPO_DOCKER:latest
+        docker tag "ghcr.io/${LOWERCASE_REPO_OWNER}/${REPO_DOCKER}:latest" "${{ vars.DOCKER_HUB_USERNAME }}/${REPO_DOCKER}:latest"
         
         # Push the Docker image to GitHub Container Registry
-        docker push ghcr.io/$LOWERCASE_REPO_OWNER/$REPO_DOCKER:latest
+        docker push "ghcr.io/${LOWERCASE_REPO_OWNER}/${REPO_DOCKER}:latest"
         # Push the Docker image to Docker Hub
-        docker push ${{ vars.DOCKER_HUB_USERNAME }}/$REPO_DOCKER:latest
+        docker push "${{ vars.DOCKER_HUB_USERNAME }}/${REPO_DOCKER}:latest"
 
     # Step 7: Clean up the workspace
     - name: Clean up
