@@ -50,24 +50,39 @@ jobs:
         username: ${{ vars.DOCKER_HUB_USERNAME }}  # Use the Docker Hub username stored in secrets
         password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}  # Use the Docker Hub access token stored in secrets
 
-    # Step 6: Build and push Docker image
     - name: Build and push Docker image
       run: |
-        cd ${{ vars.REPO_NAME }}  # Navigate to the cloned repository
-        REPO_DOCKER=$(echo "${{ vars.REPO_NAME }}-docker" | tr -d '\r')
-        # Convert repository owner to lowercase (GitHub package names must be lowercase)
-        LOWERCASE_REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]' | tr -d '\r')
+        set -x  # Enable debug mode to print commands as they are executed
+        cd "${{ vars.REPO_NAME }}"  # Navigate to the cloned repository
         
-        # Build the Docker image using the Dockerfile in the repository
-        docker build -t "ghcr.io/${LOWERCASE_REPO_OWNER}/${REPO_DOCKER}:latest" . -f Dockerfile
+        # Clean up variable values
+        REPO_DOCKER=$(echo "${{ vars.REPO_NAME }}-docker" | tr -d '\r\n\t ' | tr '[:upper:]' '[:lower:]')
+        LOWERCASE_REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr -d '\r\n\t ' | tr '[:upper:]' '[:lower:]')
+        DOCKER_HUB_USERNAME=$(echo "${{ vars.DOCKER_HUB_USERNAME }}" | tr -d '\r\n\t ')
         
-        # Tag the image for Docker Hub
-        docker tag "ghcr.io/${LOWERCASE_REPO_OWNER}/${REPO_DOCKER}:latest" "${{ vars.DOCKER_HUB_USERNAME }}/${REPO_DOCKER}:latest"
+        # Debug output
+        echo "REPO_DOCKER: ${REPO_DOCKER}"
+        echo "LOWERCASE_REPO_OWNER: ${LOWERCASE_REPO_OWNER}"
+        echo "DOCKER_HUB_USERNAME: ${DOCKER_HUB_USERNAME}"
         
-        # Push the Docker image to GitHub Container Registry
-        docker push "ghcr.io/${LOWERCASE_REPO_OWNER}/${REPO_DOCKER}:latest"
-        # Push the Docker image to Docker Hub
-        docker push "${{ vars.DOCKER_HUB_USERNAME }}/${REPO_DOCKER}:latest"
+        # Construct image tags
+        GITHUB_CR_TAG="ghcr.io/${LOWERCASE_REPO_OWNER}/${REPO_DOCKER}:latest"
+        DOCKER_HUB_TAG="${DOCKER_HUB_USERNAME}/${REPO_DOCKER}:latest"
+        
+        echo "GitHub CR tag: ${GITHUB_CR_TAG}"
+        echo "Docker Hub tag: ${DOCKER_HUB_TAG}"
+        
+        # Build the Docker image
+        docker build -t "${GITHUB_CR_TAG}" . -f Dockerfile
+        
+        # Tag for Docker Hub
+        docker tag "${GITHUB_CR_TAG}" "${DOCKER_HUB_TAG}"
+        
+        # Push to GitHub Container Registry
+        docker push "${GITHUB_CR_TAG}"
+        
+        # Push to Docker Hub
+        docker push "${DOCKER_HUB_TAG}"
 
     # Step 7: Clean up the workspace
     - name: Clean up
