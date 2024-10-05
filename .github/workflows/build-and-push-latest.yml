@@ -2,11 +2,13 @@ name: Build and Publish Docker Image
 
 # Define when the workflow should run
 on:
-  # This workflow is triggered when the 'Detect Changes and Update Commit Hash' workflow completes successfully
-  workflow_run:
-    workflows: ["Detect Changes and Update Commit Hash"]
-    types:
-      - completed
+  push:
+    paths:
+      - 'last_commit' # Specify the path to your file
+  pull_request:
+    paths:
+      - 'last_commit' # Specify the path to your file
+  workflow_dispatch:  # Allows for manual triggering of the workflow
 
 # Define the jobs to be executed in this workflow
 jobs:
